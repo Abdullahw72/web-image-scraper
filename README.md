@@ -99,6 +99,18 @@ This will return you to your host machine's shell.
 - `Dockerfile`: Instructions for building the Docker image
 - `.env`: Contains the ScrapingBee API key (not included in the repository)
 
+## WEBPAGE TESTS
+
+### FOR AVIF and SVG
+```
+python main.py https://www.ai21.com/blog/the-promise-of-rag-bringing-enterprise-generative-ai-to-life -o /app/images -m 50000
+```
+
+### FOR PNG and WEBP
+```
+python main.py https://blog.tinify.com/pros-and-cons-webp-images/ -o /app/images -m 50000
+```
+
 ## Contributing
 
 Contributions to this project are welcome. Please fork the repository and submit a pull request with your changes.
