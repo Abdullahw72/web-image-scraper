@@ -3,3 +3,5 @@ Pillow
 requests
 python-dotenv
 pillow-heif
+pillow-avif-plugin
+pyjxl
