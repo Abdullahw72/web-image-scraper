@@ -28,6 +28,19 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
+def file_already_exists(folder, img_hash):
+    # Check if both the JSON metadata file and an image file with any extension exist
+    json_file = os.path.join(folder, f"{img_hash}.json")
+    if not os.path.exists(json_file):
+        return False
+    
+    # Check for any file with the same hash (excluding the .json file)
+    for file in os.listdir(folder):
+        if file.startswith(img_hash) and not file.endswith('.json'):
+            return True
+    
+    return False
+
 
 def md5_hash(url):
     return hashlib.md5(url.encode("utf-8")).hexdigest()
@@ -76,11 +89,13 @@ def handle_svg(url, response_content, folder, min_area):
             print(f"Downloaded: {filename} (Size: {width}x{height}, Format: SVG)")
 
             # Save metadata
-            metadata = {"url": url, "format": "SVG", "size": (width, height)}
-            metadata_filename = os.path.join(folder, f"{img_hash}.json")
-            with open(metadata_filename, "w") as f:
-                json.dump(metadata, f, indent=2)
-            print(f"Metadata saved: {metadata_filename}")
+            metadata = {
+                "url": url,
+                "format": "SVG",
+                "size": (width, height),
+                "filename": f"{img_hash}.{extension}"
+            }
+            save_metadata(folder, img_hash, metadata)
         else:
             print(f"Skipped (too small): {url} (Size: {width}x{height}, Format: SVG)")
     except Exception as e:
@@ -104,11 +119,13 @@ def handle_jpeg_xl(url, response_content, folder):
         print(f"Downloaded: {filename} (Size: {width}x{height}, Format: JPEG XL)")
 
         # Save metadata
-        metadata = {"url": url, "format": "JPEG XL", "size": (width, height)}
-        metadata_filename = os.path.join(folder, f"{img_hash}.json")
-        with open(metadata_filename, "w") as f:
-            json.dump(metadata, f, indent=2)
-        print(f"Metadata saved: {metadata_filename}")
+        metadata = {
+            "url": url,
+            "format": "JPEG XL",
+            "size": (width, height),
+            "filename": f"{img_hash}.{extension}"
+        }
+        save_metadata(folder, img_hash, metadata)
 
     except Exception as e:
         print(f"Error handling JPEG XL image {url}: {str(e)}")
@@ -132,11 +149,13 @@ def handle_generic_image(url, response_content, folder, min_area):
                 )
 
                 # Save metadata
-                metadata = {"url": url, "format": img.format, "size": (width, height)}
-                metadata_filename = os.path.join(folder, f"{img_hash}.json")
-                with open(metadata_filename, "w") as f:
-                    json.dump(metadata, f, indent=2)
-                print(f"Metadata saved: {metadata_filename}")
+                metadata = {
+                    "url": url,
+                    "format": img.format,
+                    "size": (width, height),
+                    "filename": f"{img_hash}.{extension}"
+                }
+                save_metadata(folder, img_hash, metadata)
             else:
                 print(
                     f"Skipped (too small): {url} (Size: {width}x{height}, Format: {img.format})"
@@ -147,8 +166,21 @@ def handle_generic_image(url, response_content, folder, min_area):
         print(f"Error handling image {url}: {str(e)}")
 
 
+def save_metadata(folder, img_hash, metadata):
+    metadata_filename = os.path.join(folder, f"{img_hash}.json")
+    with open(metadata_filename, "w") as f:
+        json.dump(metadata, f, indent=2)
+    print(f"Metadata saved: {metadata_filename}")
+
+
 # Centralized function to call the appropriate handler based on the content-type
 def download_image(url, folder, min_area):
+    img_hash = md5_hash(url)
+    # Check if files already exist
+    if file_already_exists(folder, img_hash):
+        print(f"Skipped (already exists): {url}")
+        return
+    
     try:
         # Perform a single request
         response = requests.get(url)
@@ -209,21 +241,12 @@ def scrape_images(url, output_folder, min_area):
                     img_urls.append(full_url)
 
             print(f"Found {len(img_urls)} valid image URLs")
-
             for img_url in img_urls:
                 try:
-                    # Check URL validity by making a HEAD request
-                    head_response = requests.head(img_url)
-                    if (
-                        head_response.status_code == 200
-                        and "image" in head_response.headers.get("Content-Type", "")
-                    ):
-                        print(f"Processing image: {img_url}")
-                        download_image(img_url, output_folder, min_area)
-                    else:
-                        print(f"Skipped (not an image or not accessible): {img_url}")
+                    print(f"Processing image: {img_url}")
+                    download_image(img_url, output_folder, min_area)
                 except Exception as e:
-                    print(f"Error validating image URL {img_url}: {str(e)}")
+                    print(f"Error processing image URL {img_url}: {str(e)}")
 
         else:
             print(f"Failed to scrape the website. Status code: {response.status_code}")
@@ -231,7 +254,6 @@ def scrape_images(url, output_folder, min_area):
 
     except Exception as e:
         print(f"Error during scraping: {str(e)}")
-
 
 # Main function with argument parsing
 def main():
@@ -242,8 +264,8 @@ def main():
     parser.add_argument(
         "-o",
         "--output",
-        default="scraped_images",
-        help="Output folder for downloaded images",
+        default="./tests",
+        help="Default output folder for downloaded images",
     )
     parser.add_argument(
         "-m", "--min-area", type=int, default=50000, help="Minimum image area in pixels"
